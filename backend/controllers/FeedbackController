@@ -1,0 +1,134 @@
+const { Feedback, Order, User, MenuItem } = require('../models');
+
+// Create Feedback
+const createFeedback = async (req, res) => {
+    try {
+        const { order, customer, rating, comment, menuItemRatings } = req.body;
+
+        // Validate order existence
+        const existingOrder = await Order.findById(order);
+        if (!existingOrder) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        // Validate customer
+        const existingCustomer = await User.findById(customer);
+        if (!existingCustomer) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
+
+        // Validate menuItemRatings
+        for (const itemRating of menuItemRatings) {
+            const menuItem = await MenuItem.findById(itemRating.menuItem);
+            if (!menuItem) {
+                return res.status(404).json({ message: `MenuItem with ID ${itemRating.menuItem} not found` });
+            }
+            if (itemRating.rating < 1 || itemRating.rating > 5) {
+                return res.status(400).json({ message: `Rating for menu item ${menuItem.name} must be between 1 and 5` });
+            }
+        }
+
+        // Create feedback
+        const newFeedback = new Feedback({
+            order,
+            customer,
+            rating,
+            comment,
+            menuItemRatings,
+        });
+
+        await newFeedback.save();
+        res.status(201).json(newFeedback);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Get All Feedback
+const getFeedbacks = async (req, res) => {
+    try {
+        const feedbacks = await Feedback.find()
+            .populate('order', 'totalPrice')
+            .populate('customer', 'username')
+            .populate('menuItemRatings.menuItem', 'name');
+        res.status(200).json(feedbacks);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Get Feedback by ID
+const getFeedbackById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const feedback = await Feedback.findById(id)
+            .populate('order', 'totalPrice')
+            .populate('customer', 'username')
+            .populate('menuItemRatings.menuItem', 'name');
+        if (!feedback) {
+            return res.status(404).json({ message: 'Feedback not found' });
+        }
+
+        res.status(200).json(feedback);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Update Feedback
+const updateFeedback = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+
+        // Validate menuItemRatings if they are present
+        if (updates.menuItemRatings) {
+            for (const itemRating of updates.menuItemRatings) {
+                const menuItem = await MenuItem.findById(itemRating.menuItem);
+                if (!menuItem) {
+                    return res.status(404).json({ message: `MenuItem with ID ${itemRating.menuItem} not found` });
+                }
+                if (itemRating.rating < 1 || itemRating.rating > 5) {
+                    return res.status(400).json({ message: `Rating for menu item ${menuItem.name} must be between 1 and 5` });
+                }
+            }
+        }
+
+        const updatedFeedback = await Feedback.findByIdAndUpdate(id, updates, { new: true })
+            .populate('order', 'totalPrice')
+            .populate('customer', 'username')
+            .populate('menuItemRatings.menuItem', 'name');
+        if (!updatedFeedback) {
+            return res.status(404).json({ message: 'Feedback not found' });
+        }
+
+        res.status(200).json(updatedFeedback);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// Delete Feedback
+const deleteFeedback = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const feedback = await Feedback.findByIdAndDelete(id);
+        if (!feedback) {
+            return res.status(404).json({ message: 'Feedback not found' });
+        }
+
+        res.status(200).json({ message: 'Feedback deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = {
+    createFeedback,
+    getFeedbacks,
+    getFeedbackById,
+    updateFeedback,
+    deleteFeedback,
+};
